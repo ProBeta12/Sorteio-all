@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlashSort - Dashboard Financeiro</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>⚡ FlashSort</h1>
+  <h2 class="subtitle">Taxas do Nubank (10%) & Auditoria de Leads Rejeitados</h2>
+  
+  <div class="stats-topo">
+    <div class="stat-card">
+      <h4>Janela Lote</h4>
+      <p id="tempo">01:00</p>
+    </div>
+    <div class="stat-card">
+      <h4>Faturamento Líquido (-10%)</h4>
+      <p id="faturamento">R$ 0,00</p>
+    </div>
+  </div>
+
+  <div class="bancos-container">
+    <div class="bancos-grid">
+      <div class="banco-card" id="banco-Nubank">
+        <span class="status-dot"></span>Validador Ativo: Nubank
+        <div class="banco-info">Tempo de Resposta: 1.0s fixo | Taxa de Rede: 10%</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-sistema" id="status-sistema">FlashSort pronto para operação.</div>
+
+  <div class="controles">
+    <button onclick="iniciarSorteio()">Abrir Lote de Inscrição (1 Min)</button>
+    <button class="btn-sortear" onclick="realizarSorteio()">🎉 Sortear Vencedor</button>
+    <button class="btn-limpar" onclick="limparTudo()">🗑️ Reiniciar Painel</button>
+  </div>
+
+  <div class="vencedor-box" id="vencedor-box"></div>
+
+  <div class="grid-inferior">
+    <div class="box">
+      <h3>
+        <span>⏳ Fila de Processamento</span>
+        <span class="tempo-acumulado-header" id="tempo-acumulado-fila">Espera total: 0s</span>
+      </h3>
+      <div id="fila-logs">Nenhuma requisição na fila...</div>
+    </div>
+    
+    <div class="box">
+      <h3>✅ Pagamentos Processados (Sucesso)</h3>
+      <div id="atendidos-logs">Nenhum pagamento processado ainda...</div>
+    </div>
+  </div>
+
+  <script>
+    const evtSource = new EventSource('/painel-logs');
+    let contadorFilaLocal = 0;
+
+    function atualizarPainelBanco(ativo) {
+      const el = document.getElementById('banco-Nubank');
+      if(ativo) el.classList.add('ativo');
+      else el.classList.remove('ativo');
+    }
+
+    function atualizarTempoAcumuladoFila() {
+      document.getElementById('tempo-acumulado-fila').innerText = 'Espera total aproximada: ' + contadorFilaLocal + 's';
+    }
+
+    evtSource.onmessage = function(event) {
+      const dados = JSON.parse(event.data);
+      
+      if (dados.tipo === 'tempo') {
+        document.getElementById('tempo').innerText = '00:' + String(dados.tempo).padStart(2, '0');
+        document.getElementById('status-sistema').innerText = '🔥 Lote ativo. Fila de processamento: ' + dados.filaRestante;
+        atualizarPainelBanco(true);
+      }
+      
+      if (dados.tipo === 'status-sistema') {
+        document.getElementById('status-sistema').innerText = dados.mensagem;
+      }
+      
+      if (dados.tipo === 'nova-requisicao') {
+        const div = document.getElementById('fila-logs');
+        if(div.innerHTML.includes('Nenhuma requisição')) div.innerHTML = '';
+        
+        contadorFilaLocal = dados.filaRestante;
+        atualizarTempoAcumuladoFila();
+
+        div.innerHTML += '<div class="log-item fila"><span>💳 Pix recebido: <strong>' + dados.nome + '</strong></span><span class="metric-tag" style="color: #ff9000; border-color: #ff9000">Processando...</span></div>';
+      }
+      
+      if (dados.tipo === 'requisicao-processada') {
+        const filaDiv = document.getElementById('fila-logs');
+        if(filaDiv.firstChild) filaDiv.removeChild(filaDiv.firstChild);
+        if(filaDiv.innerHTML === '') filaDiv.innerHTML = 'Nenhuma requisição na fila...';
+
+        contadorFilaLocal = dados.filaRestante;
+        atualizarTempoAcumuladoFila();
+
+        const atendidosDiv = document.getElementById('atendidos-logs');
+        if(atendidosDiv.innerHTML.includes('Nenhum pagamento')) atendidosDiv.innerHTML = '';
+        
+        atendidosDiv.innerHTML = '<div class="log-item"><div>⚙️ <strong>' + dados.nome + '</strong> | TICKET #' + dados.ticket + ' <span class="metric-tag taxa-tag">-R$0,20 Nubank</span></div><span class="metric-tag">⏱️ ' + dados.tempoFila + 's na fila</span></div>' + atendidosDiv.innerHTML;
+        
+        document.getElementById('faturamento').innerText = 'R$ ' + dados.lucroLiquido.toFixed(2).replace('.', ',');
+        document.getElementById('status-sistema').innerText = '🔥 Lote ativo. Fila de processamento: ' + dados.filaRestante;
+      }
+
+      if (dados.tipo === 'fim-tempo') {
+        document.getElementById('tempo').innerText = '00:00';
+        document.getElementById('status-sistema').innerText = dados.mensagem;
+        document.getElementById('fila-logs').innerHTML = '<div class="log-item descartado">❌ Lote encerrado! Pedidos excedentes arquivados como REJEITADOS.</div>';
+        contadorFilaLocal = 0;
+        atualizarTempoAcumuladoFila();
+        atualizarPainelBanco(false);
+      }
+
+      if (dados.tipo === 'ganhador-sorteado') {
+        const box = document.getElementById('vencedor-box');
+        box.className = 'vencedor-box';
+        box.style.display = 'block';
+        box.innerHTML = '🔔 Ticket #' + dados.ticket + ' (' + dados.nome + ') sorteado! Valide em <span id="tempo-ganhador">60</span>s!';
+      }
+
+      if (dados.tipo === 'tempo-ganhador') {
+        const tEl = document.getElementById('tempo-ganhador');
+        if(tEl) tEl.innerText = dados.tempo;
+      }
+
+      if (dados.tipo === 'ganhador-expirou') {
+        const box = document.getElementById('vencedor-box');
+        box.className = 'vencedor-box expirou';
+        box.innerHTML = '❌ ' + dados.mensagem;
+      }
+
+      if (dados.tipo === 'ganhador-confirmado') {
+        const box = document.getElementById('vencedor-box');
+        box.className = 'vencedor-box confirmado';
+        box.innerHTML = '🏆 PARABÉNS! ' + dados.nome + ' (Ticket #' + dados.ticket + ') validou a assinatura do prêmio! 🏆';
+      }
+
+      if (dados.tipo === 'limpar-tela') {
+        document.getElementById('tempo').innerText = '01:00';
+        document.getElementById('faturamento').innerText = 'R$ 0,00';
+        document.getElementById('status-sistema').innerText = 'FlashSort pronto para operação.';
+        document.getElementById('fila-logs').innerHTML = 'Nenhuma requisição na fila...';
+        document.getElementById('atendidos-logs').innerHTML = 'Nenhum pagamento processado ainda...';
+        document.getElementById('vencedor-box').style.display = 'none';
+        contadorFilaLocal = 0;
+        atualizarTempoAcumuladoFila();
+        atualizarPainelBanco(false);
+      }
+    };
+
+    async function iniciarSorteio() {
+      await fetch('/painel/iniciar', { method: 'POST' });
+    }
+
+    async function realizarSorteio() {
+      await fetch('/painel/sortear');
+    }
+
+    async function limparTudo() {
+      await fetch('/painel/limpar', { method: 'POST' });
+    }
+  </script>
+</body>
+</html>

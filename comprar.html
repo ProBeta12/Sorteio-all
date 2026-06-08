@@ -122,6 +122,17 @@
 
     .flex-inputs { display: flex; gap: 15px; margin-bottom: 15px; }
     
+    .btn-atualizar {
+
+  /* --- ADICIONE AS LINHAS ABAIXO --- */
+  
+  /* Remove a seleção de texto no Android/Desktop */
+  user-select: none; 
+  -webkit-user-select: none; 
+
+  /* Desativa o zoom de duplo toque e atrasos de clique no iOS */
+  touch-action: manipulation; 
+}
     .btn-inferior { width: 100%; padding: 14px; font-size: 1.1rem; }
     .btn-busca { background: #04d361; color: #121214; }
     .btn-busca:hover { background: #02a74b; }
@@ -148,7 +159,7 @@
       <label for="nome">Nome do Comprador:</label>
       <input type="text" id="nome" placeholder="Digite o nome..." autocomplete="off">
     </div>
-    <button onclick="dispararCompra()">🛒 Comprar Ticket</button>
+    <button class="btn-atualizar" onclick="dispararCompra()">🛒 Comprar Ticket</button>
   </div>
 
   <div class="grid-quadros">
@@ -203,7 +214,7 @@
 
   <script>
     // ⚠️ ALTERE COM A URL DO SEU BACK-END DO CODESPACES
-    const API_URL = "https://congenial-space-succotash-r59x9jqvq7qhjw6-3000.app.github.dev";
+    const API_URL = "https://congenial-space-succotash-r59x9jqvq7qhjw6-4000.app.github.dev";
 
     let contadorFila = 0;
     let contadorCompradas = 0;

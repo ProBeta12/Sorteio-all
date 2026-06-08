@@ -1,0 +1,245 @@
+body { 
+  font-family: system-ui, sans-serif; 
+  background: #0c0c0e; 
+  color: #f5f5f7; 
+  padding: 20px; 
+  max-width: 1100px; 
+  margin: 0 auto; 
+}
+
+h1 { 
+  color: #820ad1; 
+  text-align: center; 
+  margin-bottom: 5px; 
+  font-weight: 800; 
+}
+
+h2.subtitle { 
+  text-align: center; 
+  color: #a8a8b3; 
+  font-size: 1.1rem; 
+  margin-top: 0; 
+  margin-bottom: 25px; 
+  font-weight: 400; 
+}
+
+.stats-topo { 
+  display: flex; 
+  gap: 20px; 
+  justify-content: center; 
+  margin: 15px 0; 
+}
+
+.stat-card { 
+  background: #18181b; 
+  border: 1px solid #27272a; 
+  padding: 10px 25px; 
+  border-radius: 12px; 
+  text-align: center; 
+  min-width: 180px; 
+}
+
+.stat-card h4 { 
+  margin: 0; 
+  color: #a1a1aa; 
+  font-size: 0.85rem; 
+  text-transform: uppercase; 
+}
+
+.stat-card p { 
+  margin: 5px 0 0 0; 
+  font-size: 2rem; 
+  font-weight: bold; 
+}
+
+#tempo { 
+  color: #ff9000; 
+}
+
+#faturamento { 
+  color: #04d361; 
+}
+
+.bancos-container { 
+  background: #18181b; 
+  border: 1px solid #27272a; 
+  border-radius: 12px; 
+  padding: 12px; 
+  margin-bottom: 25px; 
+}
+
+.bancos-grid { 
+  display: flex; 
+  justify-content: center; 
+}
+
+.banco-card { 
+  background: #242427; 
+  border: 1px solid #3f3f46; 
+  border-radius: 8px; 
+  padding: 10px 30px; 
+  text-align: center; 
+  font-weight: bold; 
+  border-left: 5px solid #820ad1; 
+}
+
+.banco-card .status-dot { 
+  width: 9px; 
+  height: 9px; 
+  background: #a1a1aa; 
+  border-radius: 50%; 
+  display: inline-block; 
+  margin-right: 8px; 
+}
+
+.banco-card.ativo .status-dot { 
+  background: #04d361; 
+  box-shadow: 0 0 8px #04d361; 
+}
+
+.banco-info { 
+  font-size: 0.85rem; 
+  color: #a1a1aa; 
+  font-weight: normal; 
+  margin-top: 4px; 
+}
+
+.status-sistema { 
+  background: #1c1917; 
+  border: 1px solid #444; 
+  padding: 10px; 
+  border-radius: 8px; 
+  text-align: center; 
+  font-style: italic; 
+  color: #fdba74; 
+  margin-bottom: 25px; 
+}
+
+.controles { 
+  display: flex; 
+  gap: 15px; 
+  justify-content: center; 
+  margin-bottom: 30px; 
+}
+
+button { 
+  background: #820ad1; 
+  color: #fff; 
+  border: none; 
+  padding: 12px 24px; 
+  font-size: 1rem; 
+  border-radius: 8px; 
+  cursor: pointer; 
+  font-weight: bold; 
+  transition: opacity 0.2s; 
+}
+
+button:hover { 
+  opacity: 0.9; 
+}
+
+button.btn-sortear { 
+  background: #04d361; 
+  color: #121214; 
+}
+
+button.btn-limpar { 
+  background: #27272a; 
+  color: #f4f4f5; 
+  border: 1px solid #3f3f46; 
+}
+
+.grid-inferior { 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 20px; 
+}
+
+.box { 
+  background: #18181b; 
+  padding: 20px; 
+  border-radius: 12px; 
+  border: 1px solid #27272a; 
+  height: 400px; 
+  overflow-y: auto; 
+}
+
+.box h3 { 
+  margin-top: 0; 
+  color: #f4f4f5; 
+  font-size: 1.1rem; 
+  border-bottom: 1px solid #27272a; 
+  padding-bottom: 10px; 
+  display: flex; 
+  justify-content: space-between; 
+}
+
+.log-item { 
+  background: #242427; 
+  padding: 12px; 
+  margin-bottom: 8px; 
+  border-left: 4px solid #820ad1; 
+  border-radius: 6px; 
+  font-size: 0.95rem; 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: center; 
+}
+
+.log-item.fila { 
+  border-left-color: #ff9000; 
+  background: #221502; 
+  color: #ffedd5; 
+}
+
+.log-item.descartado { 
+  border-left-color: #ef4444; 
+  background: #2d1010; 
+  color: #fca5a5; 
+}
+
+.metric-tag { 
+  font-size: 0.75rem; 
+  padding: 2px 6px; 
+  border-radius: 4px; 
+  font-weight: bold; 
+  background: #18181b; 
+  border: 1px solid #3f3f46; 
+  color: #a78bfa; 
+}
+
+.taxa-tag { 
+  color: #fca5a5; 
+  border-color: #ef4444; 
+  font-size: 0.7rem; 
+  margin-left: 8px; 
+  text-transform: uppercase;
+}
+
+.tempo-acumulado-header { 
+  font-size: 0.85rem; 
+  color: #ff9000; 
+  font-weight: normal; 
+}
+
+.vencedor-box { 
+  background: #820ad1; 
+  color: #fff; 
+  padding: 20px; 
+  border-radius: 12px; 
+  text-align: center; 
+  font-size: 1.5rem; 
+  font-weight: bold; 
+  margin-bottom: 25px; 
+  display: none; 
+}
+
+.vencedor-box.confirmado { 
+  background: #04d361; 
+  color: #121214; 
+}
+
+.vencedor-box.expirou { 
+  background: #ef4444; 
+  color: #fff; 
+}
