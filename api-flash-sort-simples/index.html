@@ -156,16 +156,19 @@
     };
 
     async function iniciarSorteio() {
-      await fetch('/painel/iniciar', { method: 'POST' });
-    }
+  // Garante que está enviando como POST exatamente como o server.js espera
+  await fetch('/painel/iniciar', { method: 'POST' });
+}
 
-    async function realizarSorteio() {
-      await fetch('/painel/sortear');
-    }
+async function realizarSorteio() {
+  // Adicionamos explicitamente o método GET para alinhar com o app.get('/painel/sortear') do servidor
+  await fetch('/painel/sortear', { method: 'GET' });
+}
 
-    async function limparTudo() {
-      await fetch('/painel/limpar', { method: 'POST' });
-    }
+async function limparTudo() {
+  // Garante o envio do POST para limpar os dados da memória
+  await fetch('/painel/limpar', { method: 'POST' });
+}
   </script>
 </body>
 </html>

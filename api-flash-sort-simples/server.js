@@ -14,13 +14,11 @@ const PORT = 4000;
 
 app.use(cors());
 app.use(express.json());
-
-// Permite que o Express sirva o arquivo CSS estático
 app.use(express.static(__dirname));
 
 const db = new sqlite3.Database(':memory:');
 
-// Banco de dados adaptado com auditoria financeira e status de transação
+// Banco de dados para auditoria
 db.run(`
   CREATE TABLE IF NOT EXISTS participantes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +33,7 @@ db.run(`
   )
 `);
 
-// Variáveis de controle
+// Variáveis de controle e sincronização
 let filaEspera = [];
 let conexoesPainel = [];
 let sorteioAtivo = false;
@@ -47,6 +45,10 @@ let faturamentoLiquido = 0;
 let ganhadorAtual = null;
 let tempoConfirmacaoGanhador = 0;
 let intervaloGanhador = null;
+
+// --- NOVAS VARIÁVEIS DE PERFORMANCE (MÉTRICAS DE INFRAESTRUTURA) ---
+let picoMaximoFila = 0;
+let tempoDesperdicadoTotal = 0;
 
 function iniciarProcessamento() {
   if (sistemaProcessando) return;
@@ -67,8 +69,8 @@ function iniciarProcessamento() {
       const tempoGastoNaFila = Math.round((tempoFinalizacao - pedido.timestampEntrada) / 1000);
 
       const valorOriginal = 2.00;
-      const taxaBanco = valorOriginal * 0.10; 
-      const valorLiquido = valorOriginal - taxaBanco; 
+      const taxaBanco = valorOriginal * 0.10; // R$ 0,20
+      const valorLiquido = valorOriginal - taxaBanco; // R$ 1,80
 
       db.run(
         `INSERT INTO participantes 
@@ -148,6 +150,11 @@ app.post('/comprar-ticket', (req, res) => {
     }
   });
 
+  // Rastreamento de pico máximo de estresse na fila física
+  if (filaEspera.length > picoMaximoFila) {
+    picoMaximoFila = filaEspera.length;
+  }
+
   enviarParaPainel({ 
     tipo: 'nova-requisicao', 
     nome, 
@@ -156,10 +163,33 @@ app.post('/comprar-ticket', (req, res) => {
   });
 });
 
+// --- ROTA ANALÍTICA AGORA COMPILADA COM ENGINE DE TELEMETRIA ---
 app.get('/painel/dados-analise', (req, res) => {
   db.all('SELECT * FROM participantes', [], (err, rows) => {
     if (err) return res.status(500).json({ erro: err.message });
-    res.json(rows);
+    
+    const aprovadas = rows.filter(r => r.status === 'APROVADO');
+    const rejeitadas = rows.filter(r => r.status === 'REJEITADO');
+
+    const totalTaxas = aprovadas.reduce((acc, r) => acc + r.porcentagem_banco, 0);
+    const totalLiquido = aprovadas.reduce((acc, r) => acc + r.valor_liquido, 0);
+    const faturamentoBruto = aprovadas.reduce((acc, r) => acc + r.valor_original, 0);
+    const somaEsperaGeral = rows.reduce((acc, r) => acc + r.tempo_fila_segundos, 0);
+
+    res.json({
+      telemetria: {
+        solicitacoesTotais: rows.length,
+        totalAprovadas: aprovadas.length,
+        totalRejeitadas: rejeitadas.length,
+        faturamentoBruto: faturamentoBruto,
+        totalTaxasPagas: totalTaxas,
+        lucroLiquidoFinal: totalLiquido,
+        picoMaximoFila: picoMaximoFila,
+        tempoDesperdicadoTotal: tempoDesperdicadoTotal,
+        latenciaMediaGeral: rows.length > 0 ? (somaEsperaGeral / rows.length).toFixed(1) : "0.0"
+      },
+      registros: rows
+    });
   });
 });
 
@@ -184,6 +214,9 @@ app.post('/painel/iniciar', (req, res) => {
       filaEspera.forEach(pedido => {
         const tempoEsperaFila = Math.round((momentoRejeicao - pedido.timestampEntrada) / 1000);
         
+        // Acumula tempo jogado fora por falha de tempo
+        tempoDesperdicadoTotal += tempoEsperaFila;
+
         db.run(
           `INSERT INTO participantes 
             (nome, chave_secreta, banco_validador, tempo_fila_segundos, valor_original, porcentagem_banco, valor_liquido, status) 
@@ -191,13 +224,13 @@ app.post('/painel/iniciar', (req, res) => {
           [pedido.nome, tempoEsperaFila]
         );
 
-        pedido.callbackErro('A transação expirou! O tempo do lote acabou e o Nubank cancelou a operação.');
+        pedido.callbackErro('A transação expirou!');
         totalSalvoRejeitados++;
       });
 
       enviarParaPainel({ 
         tipo: 'fim-tempo', 
-        mensagem: `Tempo ESGOTADO! ${totalSalvoRejeitados} requisições foram REJEITADAS e registradas no banco para auditoria.`,
+        mensagem: `Tempo ESGOTADO! ${totalSalvoRejeitados} requisições foram REJEITADAS.`,
         filaRestante: 0
       });
       filaEspera = []; 
@@ -211,7 +244,7 @@ app.get('/painel/sortear', (req, res) => {
 
   db.all("SELECT * FROM participantes WHERE status = 'APROVADO'", [], (err, rows) => {
     if (err || rows.length === 0) {
-      return res.status(400).json({ erro: 'Nenhum pagamento aprovado disponível para o sorteio.' });
+      return res.status(400).json({ erro: 'Nenhum pagamento aprovado disponível.' });
     }
     
     ganhadorAtual = rows[Math.floor(Math.random() * rows.length)];
@@ -231,7 +264,7 @@ app.get('/painel/sortear', (req, res) => {
 
       if (tempoConfirmacaoGanhador <= 0) {
         clearInterval(intervaloGanhador);
-        enviarParaPainel({ tipo: 'ganhador-expirou', mensagem: `O Ticket #${ganhadorAtual.id} (${ganhadorAtual.nome}) expirou sem validação.` });
+        enviarParaPainel({ tipo: 'ganhador-expirou', mensagem: `O Ticket #${ganhadorAtual.id} expirou.` });
         ganhadorAtual = null;
       }
     }, 1000);
@@ -242,18 +275,15 @@ app.get('/painel/sortear', (req, res) => {
 
 app.post('/confirmar-premio', (req, res) => {
   const { ticket, chave } = req.body;
-
-  if (!ganhadorAtual || tempoConfirmacaoGanhador <= 0) {
-    return res.status(400).json({ erro: 'Nenhum prêmio aguardando validação ativa.' });
-  }
+  if (!ganhadorAtual || tempoConfirmacaoGanhador <= 0) return res.status(400).json({ erro: 'Sem validação ativa.' });
 
   if (Number(ticket) === ganhadorAtual.id && chave === ganhadorAtual.chave_secreta) {
     clearInterval(intervaloGanhador);
     enviarParaPainel({ tipo: 'ganhador-confirmado', nome: ganhadorAtual.nome, ticket: ganhadorAtual.id });
     ganhadorAtual = null;
-    return res.json({ sucesso: true, mensagem: 'Prêmio confirmado e liberado! 🏆' });
+    return res.json({ sucesso: true, mensagem: 'Prêmio liberado! 🏆' });
   } else {
-    return res.status(400).json({ erro: 'Chave secreta ou ticket inválidos.' });
+    return res.status(400).json({ erro: 'Chave secreta inválida.' });
   }
 });
 
@@ -266,15 +296,15 @@ app.post('/painel/limpar', (req, res) => {
   filaEspera = [];
   faturamentoLiquido = 0;
   ganhadorAtual = null;
+  picoMaximoFila = 0;
+  tempoDesperdicadoTotal = 0;
   db.run('DELETE FROM participantes', () => {
     enviarParaPainel({ tipo: 'limpar-tela' });
     res.sendStatus(200);
   });
 });
 
-// Entrega o arquivo HTML externo na rota /painel
-app.get('/painel', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
+app.get('/painel', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/performance', (req, res) => res.sendFile(path.join(__dirname, 'performance.html')));
 
 app.listen(PORT, () => console.log(`[FlashSort] Servidor rodando com sucesso na porta ${PORT}`));

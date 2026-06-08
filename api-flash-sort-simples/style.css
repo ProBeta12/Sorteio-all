@@ -84,8 +84,7 @@ h2.subtitle {
 }
 
 .banco-card .status-dot { 
-  width: 9px; 
-  height: 9px; 
+  width: 9px; height: 9px; 
   background: #a1a1aa; 
   border-radius: 50%; 
   display: inline-block; 

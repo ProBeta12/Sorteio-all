@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlashSort - Engenharia de Performance</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0c0c0e;
+      color: #f5f5f7;
+      margin: 0;
+      padding: 30px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    h1 {
+      color: #ff9000;
+      margin-bottom: 5px;
+      font-weight: 800;
+    }
+    p.subtitle {
+      color: #a1a1aa;
+      margin-top: 0;
+    }
+    .btn-atualizar {
+      background: #820ad1;
+      color: #fff;
+      border: none;
+      padding: 12px 24px;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+    .btn-atualizar:hover {
+      background: #9b33ea;
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 20px;
+      margin-bottom: 40px;
+    }
+    .card {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    .card h3 {
+      margin: 0;
+      color: #a1a1aa;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+    }
+    .card p {
+      margin: 10px 0 0 0;
+      font-size: 1.8rem;
+      font-weight: bold;
+    }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+      gap: 30px;
+      margin-bottom: 30px;
+    }
+    .chart-box {
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 12px;
+      padding: 25px;
+    }
+    .chart-box.full-width {
+      grid-column: span 2;
+    }
+    .chart-box h2 {
+      margin-top: 0;
+      font-size: 1.1rem;
+      color: #f4f4f5;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #27272a;
+      padding-bottom: 10px;
+    }
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 280px;
+    }
+    .scrollable-chart-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+    .scrollable-chart-inner {
+      height: 300px;
+      min-width: 1200px;
+    }
+    .scrollable-chart-wrapper::-webkit-scrollbar {
+      height: 8px;
+    }
+    .scrollable-chart-wrapper::-webkit-scrollbar-track {
+      background: #18181b;
+    }
+    .scrollable-chart-wrapper::-webkit-scrollbar-thumb {
+      background: #3f3f46;
+      border-radius: 4px;
+    }
+    .scrollable-chart-wrapper::-webkit-scrollbar-thumb:hover {
+      background: #52525b;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>⏱️ FlashSort Telemetry Lab</h1>
+    <p class="subtitle">Análise de Escalonamento Síncrono, Drenagem de Buffer e Carga de Concorrência</p>
+    <button class="btn-atualizar" onclick="buscarDados()">🔄 Sincronizar Logs Analíticos</button>
+  </div>
+
+  <div class="cards-grid">
+    <div class="card">
+      <h3>Requisições Totais</h3>
+      <p id="kpi-total" style="color: #a78bfa;">0</p>
+    </div>
+    <div class="card">
+      <h3>Pico de Estresse (Fila)</h3>
+      <p id="kpi-pico" style="color: #ef4444;">0</p>
+    </div>
+    <div class="card">
+      <h3>Latência Média</h3>
+      <p id="kpi-media" style="color: #eab308;">0.0s</p>
+    </div>
+    <div class="card">
+      <h3>Recurso Desperdiçado</h3>
+      <p id="kpi-desperdicio" style="color: #f43f5e;">0s</p>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-box">
+      <h2>Vazão Operacional (Throughput)</h2>
+      <div class="chart-container">
+        <canvas id="graficoVazao"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-box">
+      <h2>Vazão por Tempo de Retenção (Segundos de Fila)</h2>
+      <div class="chart-container">
+        <canvas id="graficoDistribuicaoTempo"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-box full-width">
+      <h2>Eficiência de Escalonamento (Ordem de Entrada vs Tempo de Espera)</h2>
+      <div class="chart-container">
+        <canvas id="graficoEscalonamento"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-box full-width">
+      <h2>Linha do Tempo Cronológica Completa (Arraste para os lados para navegar no histórico ↔️)</h2>
+      <div class="scrollable-chart-wrapper">
+        <div class="scrollable-chart-inner" id="container-scroll-grafico">
+          <canvas id="graficoFilaLinearCompleto"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-box full-width">
+      <h2>Impacto Comercial & Custos de Provedor</h2>
+      <div class="chart-container">
+        <canvas id="graficoComparativoFinancias"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '/painel/dados-analise';
+    
+    let chartVazao, chartFinancas, chartFilaCompleto, chartDistTempo, chartEscalonamento;
+
+    async function buscarDados() {
+      try {
+        const resposta = await fetch(API_URL);
+        const pacote = await resposta.json();
+        renderizarDados(pacote.telemetria, pacote.registros);
+      } catch (erro) {
+        console.error(erro);
+        alert('Erro ao sincronizar infraestrutura. Verifique os logs.');
+      }
+    }
+
+    function renderizarDados(telemetria, registros) {
+      // Atualização dos Cards KPIs
+      document.getElementById('kpi-total').innerText = telemetria.solicitacoesTotais;
+      document.getElementById('kpi-pico').innerText = telemetria.picoMaximoFila + ' req';
+      document.getElementById('kpi-media').innerText = telemetria.latenciaMediaGeral + 's';
+      document.getElementById('kpi-desperdicio').innerText = telemetria.tempoDesperdicadoTotal + 's';
+
+      // Configuração dinâmica do scrollbar horizontal
+      const innerContainer = document.getElementById('container-scroll-grafico');
+      if (registros.length > 30) {
+        innerContainer.style.width = (registros.length * 35) + 'px';
+      } else {
+        innerContainer.style.width = '100%';
+      }
+
+      // Destruição segura de gráficos antigos antes da replotagem
+      if (chartVazao) chartVazao.destroy();
+      if (chartDistTempo) chartDistTempo.destroy();
+      if (chartEscalonamento) chartEscalonamento.destroy();
+      if (chartFilaCompleto) chartFilaCompleto.destroy();
+      if (chartFinancas) chartFinancas.destroy();
+
+      // [1] Gráfico de Pizza (Throughput)
+      chartVazao = new Chart(document.getElementById('graficoVazao').getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Aprovadas (Sucesso)', 'Rejeitadas (Timeout)'],
+          datasets: [{
+            data: [telemetria.totalAprovadas, telemetria.totalRejeitadas],
+            backgroundColor: ['#04d361', '#ef4444'],
+            borderWidth: 0
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false }
+      });
+
+      // [2] Gráfico de Barras (Distribuição de Tempo)
+      const distribuicaoSegundos = {};
+      registros.forEach(r => {
+        distribuicaoSegundos[r.tempo_fila_segundos] = (distribuicaoSegundos[r.tempo_fila_segundos] || 0) + 1;
+      });
+      const labelsSegundos = Object.keys(distribuicaoSegundos).sort((a,b) => a-b);
+
+      chartDistTempo = new Chart(document.getElementById('graficoDistribuicaoTempo').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: labelsSegundos.map(s => s + 's de fila'),
+          datasets: [{
+            label: 'Volume de Clientes Retidos',
+            data: labelsSegundos.map(s => distribuicaoSegundos[s]),
+            backgroundColor: '#ff9000',
+            borderRadius: 4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { grid: { color: '#27272a' } } }
+        }
+      });
+
+      // [3] Gráfico de Linha Sem Pontos (Escalonamento)
+      chartEscalonamento = new Chart(document.getElementById('graficoEscalonamento').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: registros.map((_, i) => 'Req ' + (i + 1)),
+          datasets: [{
+            label: 'Curva de Crescimento do Atraso',
+            data: registros.map(r => r.tempo_fila_segundos),
+            borderColor: '#a78bfa',
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: false,
+            tension: 0.1
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { display: false } },
+            y: { grid: { color: '#27272a' } }
+          }
+        }
+      });
+
+      // [4] Gráfico Cronológico com Barra de Rolagem
+      chartFilaCompleto = new Chart(document.getElementById('graficoFilaLinearCompleto').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: registros.map(r => r.nome),
+          datasets: [{
+            label: 'Tempo na Fila (s)',
+            data: registros.map(r => r.tempo_fila_segundos),
+            borderColor: '#3f3f46',
+            borderWidth: 1.5,
+            backgroundColor: 'rgba(255,144,0,0.02)',
+            fill: true,
+            tension: 0.1,
+            pointBackgroundColor: registros.map(r => r.status === 'APROVADO' ? '#04d361' : '#ef4444'),
+            pointBorderColor: registros.map(r => r.status === 'APROVADO' ? '#04d361' : '#ef4444'),
+            pointRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: { min: 0, grid: { color: '#27272a' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+
+      // [5] Gráfico Financeiro Relegado ao Final
+      chartFinancas = new Chart(document.getElementById('graficoComparativoFinancias').getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['Movimentação Bruta (Input)', 'Taxa Retida de Rede (Nubank)', 'Faturamento Líquido Real'],
+          datasets: [{
+            label: 'Balanço Comercial (R$)',
+            data: [telemetria.faturamentoBruto, telemetria.totalTaxasPagas, telemetria.lucroLiquidoFinal],
+            backgroundColor: ['#27272a', '#f43f5e', '#04d361'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { grid: { color: '#27272a' } } }
+        }
+      });
+    }
+
+    window.onload = buscarDados;
+  </script>
+</body>
+</html>
