@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FlashSort - Dashboard Financeiro</title>
+  <title>Premia1min</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <h1>⚡ FlashSort</h1>
-  <h2 class="subtitle">Taxas do Nubank (10%) & Auditoria de Leads Rejeitados</h2>
+  <h1>Premia1min</h1>
+  <h2 class="subtitle">participe dos nossos sorteios relampagos</h2>
   
   <div class="stats-topo">
     <div class="stat-card">
@@ -122,7 +122,7 @@
         const box = document.getElementById('vencedor-box');
         box.className = 'vencedor-box';
         box.style.display = 'block';
-        box.innerHTML = '🔔 Ticket #' + dados.ticket + ' (' + dados.nome + ') sorteado! Valide em <span id="tempo-ganhador">60</span>s!';
+        box.innerHTML = '🔔 Ticket #' + dados.ticket + ' sorteado! Valide em <span id="tempo-ganhador">60</span>s!';
       }
 
       if (dados.tipo === 'tempo-ganhador') {

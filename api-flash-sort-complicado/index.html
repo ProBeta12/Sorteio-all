@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>FlashSort - Balancer Multi-Bancos</title>
+  <title>Premia1min</title>
   <style>
     body { font-family: system-ui, sans-serif; background: #0c0c0e; color: #f5f5f7; padding: 20px; max-width: 1200px; margin: 0 auto; }
     h1 { color: #820ad1; text-align: center; margin-bottom: 5px; font-weight: 800; }
@@ -52,8 +52,8 @@
   </style>
 </head>
 <body>
-  <h1>⚡ FlashSort Multiplex</h1>
-  <h2 class="subtitle">Estratégia Drenagem Extrema (Porteira Aberta) para Lotes de 60s</h2>
+  <h1>Premia1min</h1>
+  <h2 class="subtitle">participe dos nossos sorteios relampagos</h2>
   
   <div class="stats-topo">
     <div class="stat-card">
@@ -116,7 +116,7 @@
     </div>
     
     <div class="box">
-      <h3>✅ Ledger de Validações</h3>
+      <h3>✅ Pagamentos Processados (Sucesso)</h3>
       <div id="atendidos-logs">Nenhuma transação efetuada...</div>
     </div>
   </div>
@@ -184,7 +184,7 @@
 
       if (dados.tipo === 'ganhador-sorteado') {
         const box = document.getElementById('vencedor-box'); box.className = 'vencedor-box'; box.style.display = 'block';
-        box.innerHTML = '🔔 Ticket #' + dados.ticket + ' (' + dados.nome + ') sorteado via ' + dados.banco + '! Valide em <span id="tempo-ganhador">60</span>s!';
+        box.innerHTML = '🔔 Ticket #' + dados.ticket + ' sorteado via ' + dados.banco + '! Valide em <span id="tempo-ganhador">60</span>s!';
       }
       if (dados.tipo === 'tempo-ganhador') { const tEl = document.getElementById('tempo-ganhador'); if(tEl) tEl.innerText = dados.tempo; }
       if (dados.tipo === 'ganhador-expirou') { const box = document.getElementById('vencedor-box'); box.className = 'vencedor-box expirou'; box.innerHTML = '❌ ' + dados.mensagem; }
