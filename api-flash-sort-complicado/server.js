@@ -8,7 +8,6 @@ import { fileURLToPath } from 'url';
 const app = express();
 const PORT = 4000;
 
-// Configuração necessária para usar __dirname com ES Modules (import)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -50,6 +49,9 @@ let faturamentoLiquido = 0;
 let ganhadorAtual = null;
 let tempoConfirmacaoGanhador = 0;
 let intervaloGanhador = null;
+
+// [NOVO] Variável para monitorar o maior tamanho atingido pela fila durante o lote
+let picoMaximoFila = 0;
 
 // Controladores de loop ativo de cada banco
 const rotinasBancos = { Nubank: false, Inter: false, Itau: false };
@@ -219,15 +221,57 @@ app.post('/comprar-ticket', (req, res) => {
     }
   });
 
+  // [MODIFICADO] Atualiza o pico máximo histórico de estresse da fila em número de requisições
+  if (filaEspera.length > picoMaximoFila) {
+    picoMaximoFila = filaEspera.length;
+  }
+
   enviarParaPainel({ tipo: 'nova-requisicao', nome, filaRestante: filaEspera.length, tempoEspera: calcularTempoEsperaFila() });
   gerenciarAlgoritmoRoteamento();
 });
 
-// Endpoint Analítico para os Gráficos externos consumirem
+// [MODIFICADO] Endpoint Analítico customizado para a estrutura do Telemetry Lab
 app.get('/painel/dados-analise', (req, res) => {
   db.all('SELECT * FROM participantes', [], (err, rows) => {
     if (err) return res.status(500).json({ erro: err.message });
-    res.json(rows);
+
+    // Filtros e agrupamentos estratégicos para os cálculos de infraestrutura
+    const aprovadas = rows.filter(r => r.status === 'APROVADO');
+    const rejeitadas = rows.filter(r => r.status === 'REJEITADO');
+
+    const totalAprovadas = aprovadas.length;
+    const totalRejeitadas = rejeitadas.length;
+    const solicitacoesTotais = rows.length;
+
+    // Cálculo de Latência Média Geral (Tempo médio na fila de todos que passaram pelo sistema)
+    const somaLatencia = rows.reduce((acc, r) => acc + (r.tempo_fila_segundos || 0), 0);
+    const latenciaMediaGeral = solicitacoesTotais > 0 ? (somaLatencia / solicitacoesTotais).toFixed(1) : "0.0";
+
+    // Recurso Desperdiçado (Soma do tempo que os usuários ficaram na fila e acabaram rejeitados no estouro do lote)
+    const tempoDesperdicadoTotal = rejeitadas.reduce((acc, r) => acc + (r.tempo_fila_segundos || 0), 0);
+
+    // Cálculos do Balanço Comercial & Custos de Provedor de Rede
+    const faturamentoBruto = aprovadas.reduce((acc, r) => acc + (r.valor_original || 0), 0);
+    const totalTaxasPagas = aprovadas.reduce((acc, r) => acc + (r.porcentagem_banco || 0), 0);
+    const lucroLiquidoFinal = aprovadas.reduce((acc, r) => acc + (r.valor_liquido || 0), 0);
+
+    // Estrutura exata esperada pelo JavaScript do arquivo de performance
+    const respostaFormatada = {
+      telemetria: {
+        solicitacoesTotais,
+        picoMaximoFila,
+        latenciaMediaGeral,
+        tempoDesperdicadoTotal,
+        totalAprovadas,
+        totalRejeitadas,
+        faturamentoBruto,
+        totalTaxasPagas,
+        lucroLiquidoFinal
+      },
+      registros: rows // Passa a lista completa com nome, status e tempo_fila_segundos para plotar as linhas do tempo
+    };
+
+    res.json(respostaFormatada);
   });
 });
 
@@ -321,6 +365,7 @@ app.post('/painel/limpar', (req, res) => {
   filaEspera = [];
   faturamentoLiquido = 0;
   ganhadorAtual = null;
+  picoMaximoFila = 0; // Reseta o medidor de estresse da fila
 
   BANCOS.Inter.ativo = false;
   BANCOS.Itau.ativo = false;
@@ -334,10 +379,12 @@ app.post('/painel/limpar', (req, res) => {
   });
 });
 
-// Dashboard Administrativo - Agora servindo o arquivo estático
+// Dashboard Operacional em tempo real
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
+
+// [NOVO] Rota para renderizar a interface de telemetria / laboratório de performance
 app.get('/performance', (req, res) => {
   res.sendFile(path.join(__dirname, 'performance.html'));
 });

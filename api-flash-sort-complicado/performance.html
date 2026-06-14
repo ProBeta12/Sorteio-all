@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>FlashSort - Engenharia de Performance</title>
+  <title>FlashSort - Engenharia de Performance por Banco</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
@@ -120,7 +120,7 @@
 
   <div class="header">
     <h1>⏱️ FlashSort Telemetry Lab</h1>
-    <p class="subtitle">Análise de Escalonamento Síncrono, Drenagem de Buffer e Carga de Concorrência</p>
+    <p class="subtitle">Análise de Escalonamento Síncrono, Drenagem de Buffer e Carga de Concorrência por Validador</p>
     <button class="btn-atualizar" onclick="buscarDados()">🔄 Sincronizar Logs Analíticos</button>
   </div>
 
@@ -145,16 +145,16 @@
 
   <div class="charts-grid">
     <div class="chart-box">
-      <h2>Vazão Operacional (Throughput)</h2>
+      <h2>Vazão por Banco Validador (Throughput Particionado)</h2>
       <div class="chart-container">
         <canvas id="graficoVazao"></canvas>
       </div>
     </div>
 
     <div class="chart-box">
-      <h2>Vazão por Tempo de Retenção (Segundos de Fila)</h2>
+      <h2>Tempo Médio Retido na Fila por Banco</h2>
       <div class="chart-container">
-        <canvas id="graficoDistribuicaoTempo"></canvas>
+        <canvas id="graficoTempoPorBanco"></canvas>
       </div>
     </div>
 
@@ -168,7 +168,7 @@
 
   <div class="charts-grid">
     <div class="chart-box full-width">
-      <h2>Linha do Tempo Cronológica Completa (Arraste para os lados para navegar no histórico ↔️)</h2>
+      <h2>Linha do Tempo Cronológica (As cores indicam o Banco que processou a Transação ↔️)</h2>
       <div class="scrollable-chart-wrapper">
         <div class="scrollable-chart-inner" id="container-scroll-grafico">
           <canvas id="graficoFilaLinearCompleto"></canvas>
@@ -179,7 +179,7 @@
 
   <div class="charts-grid">
     <div class="chart-box full-width">
-      <h2>Impacto Comercial & Custos de Provedor</h2>
+      <h2>Auditoria de Custos & Eficiência Financeira por Banco</h2>
       <div class="chart-container">
         <canvas id="graficoComparativoFinancias"></canvas>
       </div>
@@ -189,7 +189,16 @@
   <script>
     const API_URL = '/painel/dados-analise';
     
-    let chartVazao, chartFinancas, chartFilaCompleto, chartDistTempo, chartEscalonamento;
+    let chartVazao, chartFinancas, chartFilaCompleto, chartTempoBanco, chartEscalonamento;
+
+    // Paleta de Identidade Visual Fixa dos Validadores
+    const CORES_BANCOS = {
+      'Nubank': '#820ad1',      // Roxo Nubank
+      'Inter': '#ff7a00',       // Laranja Banco Inter
+      'Itaú': '#004b87',        // Azul Itaú
+      'SolanaPay': '#14f195',    // Verde Neon Solana
+      'Descartado': '#ef4444',   // Vermelho para Rejeitados/Timeouts
+    };
 
     async function buscarDados() {
       try {
@@ -217,59 +226,83 @@
         innerContainer.style.width = '100%';
       }
 
-      // Destruição segura de gráficos antigos antes da replotagem
+      // Inicialização dos mapas de agrupamento por banco
+      const bancosPermitidos = ['Nubank', 'Inter', 'Itaú', 'SolanaPay', 'Descartado'];
+      const contagemBancos = { Nubank: 0, Inter: 0, 'Itaú': 0, SolanaPay: 0, Descartado: 0 };
+      const temposFilaBanco = { Nubank: [], Inter: [], 'Itaú': [], SolanaPay: [], Descartado: [] };
+      const finBruto = { Nubank: 0, Inter: 0, 'Itaú': 0, SolanaPay: 0 };
+      const finTaxas = { Nubank: 0, Inter: 0, 'Itaú': 0, SolanaPay: 0 };
+      const finLiquido = { Nubank: 0, Inter: 0, 'Itaú': 0, SolanaPay: 0 };
+
+      // Processamento e Agrupamento dos Registros da API
+      registros.forEach(r => {
+        let b = r.banco_validador === 'Itaú' || r.banco_validador === 'Itau' ? 'Itaú' : r.banco_validador;
+        if (r.status === 'REJEITADO') b = 'Descartado';
+
+        if (bancosPermitidos.includes(b)) {
+          contagemBancos[b]++;
+          temposFilaBanco[b].push(r.tempo_fila_segundos || 0);
+
+          if (r.status === 'APROVADO') {
+            finBruto[b] += (r.valor_original || 0);
+            finTaxas[b] += (r.porcentagem_banco || 0);
+            finLiquido[b] += (r.valor_liquido || 0);
+          }
+        }
+      });
+
+      // Destruição segura de instâncias anteriores do Chart.js
       if (chartVazao) chartVazao.destroy();
-      if (chartDistTempo) chartDistTempo.destroy();
+      if (chartTempoBanco) chartTempoBanco.destroy();
       if (chartEscalonamento) chartEscalonamento.destroy();
       if (chartFilaCompleto) chartFilaCompleto.destroy();
       if (chartFinancas) chartFinancas.destroy();
 
-      // [1] Gráfico de Pizza (Throughput)
+      // [1] Gráfico de Rosca: Distribuição de Carga (Throughput por Validador)
       chartVazao = new Chart(document.getElementById('graficoVazao').getContext('2d'), {
         type: 'doughnut',
         data: {
-          labels: ['Aprovadas (Sucesso)', 'Rejeitadas (Timeout)'],
+          labels: Object.keys(contagemBancos),
           datasets: [{
-            data: [telemetria.totalAprovadas, telemetria.totalRejeitadas],
-            backgroundColor: ['#04d361', '#ef4444'],
+            data: Object.values(contagemBancos),
+            backgroundColor: Object.keys(contagemBancos).map(b => CORES_BANCOS[b]),
             borderWidth: 0
           }]
         },
         options: { responsive: true, maintainAspectRatio: false }
       });
 
-      // [2] Gráfico de Barras (Distribuição de Tempo)
-      const distribuicaoSegundos = {};
-      registros.forEach(r => {
-        distribuicaoSegundos[r.tempo_fila_segundos] = (distribuicaoSegundos[r.tempo_fila_segundos] || 0) + 1;
+      // [2] Gráfico de Barras: Latência Média por Banco
+      const mediasTempoBanco = bancosPermitidos.map(b => {
+        const fila = temposFilaBanco[b];
+        return fila.length ? (fila.reduce((a, b) => a + b, 0) / fila.length).toFixed(2) : 0;
       });
-      const labelsSegundos = Object.keys(distribuicaoSegundos).sort((a,b) => a-b);
 
-      chartDistTempo = new Chart(document.getElementById('graficoDistribuicaoTempo').getContext('2d'), {
+      chartTempoBanco = new Chart(document.getElementById('graficoTempoPorBanco').getContext('2d'), {
         type: 'bar',
         data: {
-          labels: labelsSegundos.map(s => s + 's de fila'),
+          labels: bancosPermitidos,
           datasets: [{
-            label: 'Volume de Clientes Retidos',
-            data: labelsSegundos.map(s => distribuicaoSegundos[s]),
-            backgroundColor: '#ff9000',
-            borderRadius: 4
+            label: 'Tempo Médio na Fila (Segundos)',
+            data: mediasTempoBanco,
+            backgroundColor: bancosPermitidos.map(b => CORES_BANCOS[b]),
+            borderRadius: 6
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          scales: { y: { grid: { color: '#27272a' } } }
+          scales: { y: { grid: { color: '#27272a' }, min: 0 } }
         }
       });
 
-      // [3] Gráfico de Linha Sem Pontos (Escalonamento)
+      // [3] Gráfico de Linha Sem Pontos (Crescimento de Aatraso Geral)
       chartEscalonamento = new Chart(document.getElementById('graficoEscalonamento').getContext('2d'), {
         type: 'line',
         data: {
           labels: registros.map((_, i) => 'Req ' + (i + 1)),
           datasets: [{
-            label: 'Curva de Crescimento do Atraso',
+            label: 'Curva de Crescimento do Atraso (Geral)',
             data: registros.map(r => r.tempo_fila_segundos),
             borderColor: '#a78bfa',
             borderWidth: 2,
@@ -288,7 +321,13 @@
         }
       });
 
-      // [4] Gráfico Cronológico com Barra de Rolagem
+      // [4] Gráfico Cronológico Completo (Mapeado por Cores de Bancos)
+      const coresPontosTimeline = registros.map(r => {
+        let b = r.banco_validador === 'Itaú' || r.banco_validador === 'Itau' ? 'Itaú' : r.banco_validador;
+        if (r.status === 'REJEITADO') return CORES_BANCOS['Descartado'];
+        return CORES_BANCOS[b] || '#ffffff';
+      });
+
       chartFilaCompleto = new Chart(document.getElementById('graficoFilaLinearCompleto').getContext('2d'), {
         type: 'line',
         data: {
@@ -298,11 +337,11 @@
             data: registros.map(r => r.tempo_fila_segundos),
             borderColor: '#3f3f46',
             borderWidth: 1.5,
-            backgroundColor: 'rgba(255,144,0,0.02)',
+            backgroundColor: 'rgba(255,144,0,0.01)',
             fill: true,
             tension: 0.1,
-            pointBackgroundColor: registros.map(r => r.status === 'APROVADO' ? '#04d361' : '#ef4444'),
-            pointBorderColor: registros.map(r => r.status === 'APROVADO' ? '#04d361' : '#ef4444'),
+            pointBackgroundColor: coresPontosTimeline,
+            pointBorderColor: coresPontosTimeline,
             pointRadius: 5
           }]
         },
@@ -316,22 +355,39 @@
         }
       });
 
-      // [5] Gráfico Financeiro Relegado ao Final
+      // [5] Gráfico Multibarras: Balanço Financeiro e Absorção de Taxas por Banco
+      const bancosFinanceiros = ['Nubank', 'Inter', 'Itaú', 'SolanaPay'];
       chartFinancas = new Chart(document.getElementById('graficoComparativoFinancias').getContext('2d'), {
         type: 'bar',
         data: {
-          labels: ['Movimentação Bruta (Input)', 'Taxa Retida de Rede (Nubank)', 'Faturamento Líquido Real'],
-          datasets: [{
-            label: 'Balanço Comercial (R$)',
-            data: [telemetria.faturamentoBruto, telemetria.totalTaxasPagas, telemetria.lucroLiquidoFinal],
-            backgroundColor: ['#27272a', '#f43f5e', '#04d361'],
-            borderRadius: 6
-          }]
+          labels: bancosFinanceiros,
+          datasets: [
+            {
+              label: 'Faturamento Bruto (R$)',
+              data: bancosFinanceiros.map(b => finBruto[b]),
+              backgroundColor: '#3f3f46',
+              borderRadius: 4
+            },
+            {
+              label: 'Taxas Retidas pelo Banco (R$)',
+              data: bancosFinanceiros.map(b => finTaxas[b]),
+              backgroundColor: '#ef4444',
+              borderRadius: 4
+            },
+            {
+              label: 'Faturamento Líquido Real (R$)',
+              data: bancosFinanceiros.map(b => finLiquido[b]),
+              backgroundColor: '#04d361',
+              borderRadius: 4
+            }
+          ]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          scales: { y: { grid: { color: '#27272a' } } }
+          scales: {
+            y: { grid: { color: '#27272a' } }
+          }
         }
       });
     }
